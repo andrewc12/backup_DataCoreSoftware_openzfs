@@ -257,6 +257,24 @@ zfs_xattr_owner_unlinked(znode_t *zp)
 	}
 	if (tzp != zp)
 		zrele(tzp);
+#elif defined(_WIN32)
+	zhold(zp);
+	/*
+	 * if zp is XATTR node, keep walking up via z_xattr_parent until we
+	 * get the owner
+	 */
+	while (zp->z_pflags & ZFS_XATTR && zp->z_xattr_parent != NULL) {
+	    ASSERT3U(zp->z_xattr_parent, != , 0);
+	    if (zfs_zget(ZTOZSB(zp), zp->z_xattr_parent, &dzp) != 0) {
+		unlinked = 1;
+		break;
+	    }
+
+	    zrele(zp);
+	    zp = dzp;
+	    unlinked = zp->z_unlinked;
+	}
+	zrele(zp);
 #else
 	zhold(zp);
 	/*
@@ -530,7 +548,7 @@ zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype, znode_t *sdzp,
  * called as soon as the write is on stable storage (be it via a DMU sync or a
  * ZIL commit).
  */
-static long zfs_immediate_write_sz = 32768;
+static ZFS_MODULE_LONG zfs_immediate_write_sz = 32768;
 
 void
 zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,

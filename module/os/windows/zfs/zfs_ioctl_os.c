@@ -90,6 +90,7 @@ zfs_vfs_ref(zfsvfs_t **zfvp)
 
 NTSTATUS zpool_zfs_get_metrics(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    Irp->IoStatus.Information = 0;
     if (IrpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof(zpool_zfs_metrics)) {
 	Irp->IoStatus.Information = sizeof(zpool_zfs_metrics);
 	return STATUS_BUFFER_TOO_SMALL;
@@ -105,6 +106,13 @@ NTSTATUS zpool_zfs_get_metrics(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_
     if (strchr(perf->name, '/') != NULL) {
 	is_zpool = 0;
     }
+
+
+    perf->zpool_dedup_ratio = 0;
+    perf->zpoolHealthState = 0;
+    perf->zpool_allocated = 0;
+    perf->zpool_size = 0;
+    perf->zfs_volSize = 0;
 
     perf->used = getUsedData(perf->name);
     perf->compress_ratio = getCompressRatio(perf->name);
@@ -122,13 +130,12 @@ NTSTATUS zpool_zfs_get_metrics(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_
 	spa_config_enter(spa_perf, SCL_ALL, FTAG, RW_READER);
 	vdev_get_stats_ex(spa_perf->spa_root_vdev, &vs, &vsx);
 	perf->zpool_dedup_ratio = ddt_get_pool_dedup_ratio(spa_perf);
-	const char* healthState = spa_state_to_name(spa_perf);
+	perf->zpoolHealthState = spa_state_to_name_as_per_dmc(spa_perf);
 	spa_config_exit(spa_perf, SCL_ALL, FTAG);
 	mutex_exit(&spa_namespace_lock);
 
 	perf->zpool_allocated = vs.vs_alloc;
 	perf->zpool_size = vs.vs_space;
-	strcpy(perf->zpoolHealthState, healthState);
 
     }
     else

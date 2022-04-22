@@ -592,7 +592,7 @@ typedef struct {
     unsigned __int64	zpool_dedup_ratio;
     unsigned __int64	zfs_volSize;
 
-    char zpoolHealthState[MAXNAMELEN];
+    int zpoolHealthState;
     char name[MAXNAMELEN];
 }zpool_zfs_metrics;
 
@@ -665,10 +665,11 @@ extern void zfs_unmount_snap(const char *);
 extern void zfs_destroy_unmount_origin(const char *);
 extern int getzfsvfs_impl(struct objset *, struct zfsvfs **);
 extern int getzfsvfs(const char *, struct zfsvfs **);
-extern int getUsedData(char * name);
-extern int getCompressRatio(char* name);
-extern int getAvail(char* name);
+extern uint64_t getUsedData(char * name);
+extern uint64_t getCompressRatio(char* name);
+extern uint64_t getAvail(char* name);
 extern uint64_t getZvolSize(char* name);
+extern int spa_state_to_name_as_per_dmc(spa_t* spa);
 extern void latency_stats(uint64_t *histo, unsigned int buckets,
     stat_pair* lat);
 

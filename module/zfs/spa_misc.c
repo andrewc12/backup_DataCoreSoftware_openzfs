@@ -2744,6 +2744,54 @@ spa_state_to_name(spa_t *spa)
 	return ("UNKNOWN");
 }
 
+/*
+ * Return the pool state int value as per enum zpool_state_dmc.
+ */
+int
+spa_state_to_name_as_per_dmc(spa_t* spa)
+{
+    ASSERT3P(spa, != , NULL);
+    /*
+     * it is possible for the spa to exist, without root vdev
+     * as the spa transitions during import/export
+     */
+    vdev_t* rvd = spa->spa_root_vdev;
+    if (rvd == NULL) {
+	return TRANSITIONING;
+    }
+    vdev_state_t state = rvd->vdev_state;
+    vdev_aux_t aux = rvd->vdev_stat.vs_aux;
+
+    if (spa_suspended(spa) &&
+	(spa_get_failmode(spa) != ZIO_FAILURE_MODE_CONTINUE))
+	return SUSPENDED;
+
+    switch (state) {
+    case VDEV_STATE_CLOSED:
+    case VDEV_STATE_OFFLINE:
+	return OFFLINE;
+    case VDEV_STATE_REMOVED:
+	return REMOVED;
+    case VDEV_STATE_CANT_OPEN:
+	if (aux == VDEV_AUX_CORRUPT_DATA || aux == VDEV_AUX_BAD_LOG)
+	    return FAULTED;
+	else if (aux == VDEV_AUX_SPLIT_POOL)
+	    return SPLIT;
+	else
+	    return UNAVAIL;
+    case VDEV_STATE_FAULTED:
+	return FAULTED;
+    case VDEV_STATE_DEGRADED:
+	return DEGRADED;
+    case VDEV_STATE_HEALTHY:
+	return ONLINE;
+    default:
+	break;
+    }
+
+    return UNKNOWN;
+}
+
 boolean_t
 spa_top_vdevs_spacemap_addressable(spa_t *spa)
 {

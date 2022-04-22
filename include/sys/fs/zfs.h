@@ -891,6 +891,22 @@ typedef enum vdev_state {
 	VDEV_STATE_HEALTHY	/* Presumed good			*/
 } vdev_state_t;
 
+/*
+ * zpool state str to int for IOCTL - ZPOOL_ZFS_GET_METRICS_DATA
+ */
+enum zpool_state_dmc {
+    UNKNOWN = 0,
+    UNAVAIL = 1,
+    ONLINE = 2,
+    OFFLINE = 3,
+    DEGRADED = 4,
+    FAULTED = 5,
+    REMOVED = 6,
+    SPLIT = 7,
+    TRANSITIONING = 8,
+    SUSPENDED = 9
+};
+
 #define	VDEV_STATE_ONLINE	VDEV_STATE_HEALTHY
 
 /*

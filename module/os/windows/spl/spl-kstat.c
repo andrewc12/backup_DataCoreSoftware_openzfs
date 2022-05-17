@@ -2261,6 +2261,11 @@ int spl_kstat_write(PDEVICE_OBJECT DiskDevice, PIRP Irp,
 	return (0);
 }
 
+uint64_t
+getL2ArcAllocSize(arc_stats_t* arc_ptr) {
+    return arc_ptr->arcstat_l2_psize.value.ui64;
+}
+
 // Added comments inline referring to perl arcstat.pl
 void
 arc_cache_counters_perfmon(cache_counters* perf, arc_stats_t* arc_ptr)

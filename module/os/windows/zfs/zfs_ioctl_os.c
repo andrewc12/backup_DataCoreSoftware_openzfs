@@ -88,6 +88,7 @@ zfs_vfs_ref(zfsvfs_t **zfvp)
 	return (error);
 }
 
+extern kstat_t* perf_arc_ksp;
 NTSTATUS zpool_zfs_get_metrics(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     Irp->IoStatus.Information = 0;
@@ -112,6 +113,7 @@ NTSTATUS zpool_zfs_get_metrics(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_
     perf->zpool_size = 0;
     perf->zfs_volSize = 0;
     strncpy(perf->zpoolHealthState, "", sizeof(perf->zpoolHealthState));
+    perf->l2arc_alloc_size = 0;
 
     perf->used = getUsedData(perf->name);
     perf->compress_ratio = getCompressRatio(perf->name);
@@ -140,6 +142,12 @@ NTSTATUS zpool_zfs_get_metrics(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_
     }
     else
 	perf->zfs_volSize = getZvolSize(perf->name);
+
+    KSTAT_ENTER(perf_arc_ksp);
+    int error = KSTAT_UPDATE(perf_arc_ksp, KSTAT_READ);
+    if (!error)
+	perf->l2arc_alloc_size = getL2ArcAllocSize(perf_arc_ksp->ks_data);
+    KSTAT_EXIT(perf_arc_ksp);
 
     Irp->IoStatus.Information = sizeof(zpool_zfs_metrics);
     return STATUS_SUCCESS;

@@ -594,6 +594,7 @@ typedef struct {
 
     char zpoolHealthState[MAXNAMELEN];
     char name[MAXNAMELEN];
+    unsigned __int64	l2arc_alloc_size;
 }zpool_zfs_metrics;
 
 typedef struct {

@@ -91,7 +91,6 @@ zfs_vfs_ref(zfsvfs_t **zfvp)
 extern kstat_t* perf_arc_ksp;
 NTSTATUS zpool_zfs_get_metrics(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
-    Irp->IoStatus.Information = 0;
     if (IrpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof(zpool_zfs_metrics)) {
 	Irp->IoStatus.Information = sizeof(zpool_zfs_metrics);
 	return STATUS_BUFFER_TOO_SMALL;
@@ -114,7 +113,7 @@ NTSTATUS zpool_zfs_get_metrics(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_
     perf->zfs_volSize = 0;
     strncpy(perf->zpoolHealthState, "", sizeof(perf->zpoolHealthState));
     perf->l2arc_alloc_size = 0;
-
+    perf->mirror_slog_alloc_size = 0;
     perf->used = getUsedData(perf->name);
     perf->compress_ratio = getCompressRatio(perf->name);
     perf->available = getAvail(perf->name);
@@ -126,10 +125,11 @@ NTSTATUS zpool_zfs_get_metrics(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_
 	    mutex_exit(&spa_namespace_lock);
 	    return STATUS_NOT_FOUND;
 	}
+
 	vdev_stat_t vs = { 0 };
-	vdev_stat_ex_t vsx = { 0 };
 	spa_config_enter(spa_perf, SCL_ALL, FTAG, RW_READER);
-	vdev_get_stats_ex(spa_perf->spa_root_vdev, &vs, &vsx);
+	perf->mirror_slog_alloc_size = getMirrorSlogUsedSize(spa_perf->spa_root_vdev);
+	vdev_get_stats(spa_perf->spa_root_vdev, &vs);
 	perf->zpool_dedup_ratio = ddt_get_pool_dedup_ratio(spa_perf);
 	const char* healthState = spa_state_to_name(spa_perf);
 	spa_config_exit(spa_perf, SCL_ALL, FTAG);

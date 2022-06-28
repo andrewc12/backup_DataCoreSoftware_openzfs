@@ -1784,11 +1784,19 @@ zfs_set_security(struct vnode *vp, struct vnode *dvp)
 				goto err;
 			}
 			dvp = ZTOV(dzp);
+
 		} // What to do if no sa_hdl ?
 	} else {
 		VN_HOLD(dvp);
 		dzp = VTOZ(dvp);
 	}
+
+        if (vnode_security(dvp) == NULL)
+		zfs_set_security(dvp, NULL);
+
+	// We can fail here, if we are processing unlinked-list
+	if (vnode_security(dvp) == NULL)
+		goto err;
 
 	ASSERT(dvp != NULL);
 	ASSERT(dzp != NULL);
@@ -1812,7 +1820,8 @@ zfs_set_security(struct vnode *vp, struct vnode *dvp)
 	RtlSetGroupSecurityDescriptor(&sd, groupsid, FALSE);
 
 err:
-	if (dvp) VN_RELE(dvp);
+	if (dvp)
+		VN_RELE(dvp);
 	ZFS_EXIT(zfsvfs);
 
 	if (usersid != NULL)
@@ -2765,6 +2774,38 @@ file_basic_information(PDEVICE_OBJECT DeviceObject, PIRP Irp,
 	dprintf("   %s failing\n", __func__);
 	return (STATUS_OBJECT_NAME_NOT_FOUND);
 }
+NTSTATUS
+file_compression_information(PDEVICE_OBJECT DeviceObject, PIRP Irp,
+    PIO_STACK_LOCATION IrpSp, FILE_COMPRESSION_INFORMATION *fci)
+{
+	dprintf("   %s\n", __func__);
+
+	if (IrpSp->Parameters.QueryFile.Length <
+	    sizeof (FILE_COMPRESSION_INFORMATION)) {
+		Irp->IoStatus.Information = sizeof (FILE_COMPRESSION_INFORMATION);
+		return (STATUS_BUFFER_TOO_SMALL);
+	}
+
+	if (IrpSp->FileObject && IrpSp->FileObject->FsContext) {
+		struct vnode *vp = IrpSp->FileObject->FsContext;
+		if (VN_HOLD(vp) == 0) {
+			znode_t *zp = VTOZ(vp);
+			zfsvfs_t *zfsvfs = zp->z_zfsvfs;
+
+			memset(fci, 0, sizeof (FILE_COMPRESSION_INFORMATION));
+
+			// Deal with ads here, and send adsdata.length
+			if (vnode_isdir(vp))
+				fci->CompressedFileSize.QuadPart = zp->z_size;
+			
+			VN_RELE(vp);
+		}
+		Irp->IoStatus.Information = sizeof (FILE_COMPRESSION_INFORMATION);
+		return (STATUS_SUCCESS);
+	}
+
+	return (STATUS_INVALID_PARAMETER);
+}
 
 uint64_t
 zfs_blksz(znode_t *zp)
@@ -2810,8 +2851,8 @@ file_standard_information(PDEVICE_OBJECT DeviceObject, PIRP Irp,
 		// sa_object_size(zp->z_sa_hdl, &blksize, &nblks);
 		uint64_t blk = zfs_blksz(zp);
 		// space taken on disk, multiples of block size
-		standard->AllocationSize.QuadPart =
-		    P2ROUNDUP(zp->z_size ? zp->z_size : 1, blk);
+
+		standard->AllocationSize.QuadPart = allocationsize(zp);
 		standard->EndOfFile.QuadPart = vnode_isdir(vp) ? 0 : zp->z_size;
 		standard->NumberOfLinks = zp->z_links;
 		standard->DeletePending = zccb &&
@@ -2873,6 +2914,20 @@ file_ea_information(PDEVICE_OBJECT DeviceObject, PIRP Irp,
 	}
 
 	return (STATUS_INVALID_PARAMETER);
+}
+
+NTSTATUS
+file_alignment_information(PDEVICE_OBJECT DeviceObject, PIRP Irp,
+    PIO_STACK_LOCATION IrpSp, FILE_ALIGNMENT_INFORMATION *fai)
+{
+	dprintf("   %s\n", __func__);
+	if (IrpSp->Parameters.QueryFile.Length < sizeof (FILE_ALIGNMENT_INFORMATION)) {
+		Irp->IoStatus.Information = sizeof (FILE_ALIGNMENT_INFORMATION);
+		return (STATUS_BUFFER_TOO_SMALL);
+	}
+
+	fai->AlignmentRequirement = FILE_WORD_ALIGNMENT;
+	return (STATUS_SUCCESS);
 }
 
 NTSTATUS
